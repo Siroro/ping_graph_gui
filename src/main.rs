@@ -4,72 +4,59 @@ use eframe::egui::{self, Label};
 use egui_plot::{Line, Plot, PlotBounds, PlotPoints};
 use ping::ping;
 use std::net::ToSocketAddrs;
-use std::thread::sleep;
+use std::sync::{mpsc, Arc, RwLock};
+use std::thread::{self, sleep};
 use std::time::{Duration, Instant};
 
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 
 struct PingApp {
-    address: String,
     ping_times: Vec<(f64, f64)>,
     last_ping: Instant,
+    shared_data: Arc<RwLock<SharedPingData>>,
+    rx: mpsc::Receiver<f64>,  // Receiver to get ping times from the thread
 }
 
 impl Default for PingApp {
     fn default() -> Self {
         Self {
-            address: "8.8.8.8".to_string(),
             ping_times: Vec::new(),
             last_ping: Instant::now(),
-        }
+            shared_data: Arc::new(RwLock::new(SharedPingData { address: "8.8.8.8".to_string()})),
+            rx: mpsc::channel().1
+            }
+    }
+}
+
+impl PingApp {
+    fn new(shared_ping_data: Arc<RwLock<SharedPingData>>, rx: mpsc::Receiver<f64>) -> Self {
+        Self { shared_data:shared_ping_data, rx, ..Default::default() }
     }
 }
 
 impl eframe::App for PingApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {        
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Ping Graph");
 
+            let mut shared_data = self.shared_data.write().unwrap(); // Write lock for modifying the address
+
             ui.horizontal(|ui| {
                 ui.label("Address to ping:");
-                ui.text_edit_singleline(&mut self.address);
+                ui.text_edit_singleline(&mut shared_data.address);
                 if ui.button("Reset").clicked() {
                     self.ping_times.clear();
                     self.last_ping = Instant::now();
                 }
             });
 
-            
-            if self.last_ping.elapsed() >= Duration::from_secs(1) {
-                self.last_ping = Instant::now();
-                
-                // Attempt to resolve the address (works for both IP addresses and hostnames)
-                match (self.address.as_str(), 0).to_socket_addrs() {
-                    
-                    Ok(mut addrs) => {
-                        if let Some(sock_addr) = addrs.next() {
-                            let ip = sock_addr.ip();
-                            let start = Instant::now();
-                            match ping(ip, None, None, None, None, None) {
-                                Ok(_) => {
-                                    let duration = start.elapsed();
-                                    let ping_time = duration.as_millis() as f64;
-                                    let time = self.ping_times.len() as f64;
-                                    self.ping_times.push((time, ping_time));
-                                    println!("Ping time: {:.2} ms", ping_time);
-                                }
-                                Err(e) => println!("Ping failed: {}", e),
-                            }
-                        } else {
-                            println!("Could not resolve address: {}", self.address);
-                        }
-                    }
-                    Err(e) =>  { 
-                        ui.label(format!("Invalid address: {}. Error: {}", self.address, e.to_string()));
-                        println!("Invalid address: {}. Error: {}", self.address, e);
-                    }
-                }
+            drop(shared_data); // Release the write lock
+
+            if let Ok(ping_time) = self.rx.try_recv() {
+                let time = self.ping_times.len() as f64;
+                self.ping_times.push((time, ping_time));
+                println!("Ping time in UI: {:.2} ms", ping_time);
             }
             
             let stats = calculate_ping_stats(&self.ping_times);
@@ -86,18 +73,15 @@ impl eframe::App for PingApp {
                 .allow_zoom(false)
                 .allow_drag(false)
                 .show(ui, |plot_ui| {
-                    
                     let line = Line::new(PlotPoints::from(points.clone()));
                     plot_ui.line(line);
                     let size = points.len() as f64;
                     plot_ui.set_plot_bounds(PlotBounds::from_min_max(
                         [0.0, 0.0],
                         [size, worst + 10.0]
-                        
                     ));
                 });
                 
-            
             match stats {
                 Some((best, worst, average)) => {
                     ui.label(format!(
@@ -109,6 +93,7 @@ impl eframe::App for PingApp {
                     ui.label("No ping times available.");
                 }
             }
+
             ui.add(Label::new(""));
         });
 
@@ -118,6 +103,10 @@ impl eframe::App for PingApp {
     }
 }
 
+struct SharedPingData {
+    address: String,
+}
+
 fn main() -> Result<(), eframe::Error> {
     let options: eframe::NativeOptions = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -125,10 +114,49 @@ fn main() -> Result<(), eframe::Error> {
             .with_min_inner_size([300.0, 220.0]),
         ..Default::default()
     };
+
+    let shared_ping_data: Arc<RwLock<SharedPingData>> = Arc::new(RwLock::new(SharedPingData {
+        address: "8.8.8.8".to_string(),
+    }));
+    let shared_ping_data_for_thread = Arc::clone(&shared_ping_data);
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        loop {
+            let shared_data = shared_ping_data_for_thread.read().unwrap(); // Write lock for modifying shared data
+            let start = Instant::now();
+            let address = &shared_data.address.clone();
+            drop(shared_data);
+            match (address.as_str(), 0).to_socket_addrs() {
+                Ok(mut addrs) => {
+                    if let Some(sock_addr) = addrs.next() {
+                        let ip = sock_addr.ip();
+                        match ping(ip, None, None, None, None, None) {
+                            Ok(_) => {
+                                let duration = start.elapsed();
+                                tx.send(duration.as_millis() as f64).unwrap();
+                            }
+                            Err(e) => println!("Ping failed: {}", e),
+                        }
+                    } else {
+                        println!("Could not resolve address: {}", address);
+                    }
+                }
+                Err(e) => {
+                    println!("Invalid address: {}. Error: {}", address, e);
+                }
+            }
+
+            // Wait for 1 second before pinging again
+            thread::sleep(Duration::from_secs(1));
+        }
+    });
+
+    let shared_ping_data_for_app = Arc::clone(&shared_ping_data);
     eframe::run_native(
         "Ping Graph",
         options,
-        Box::new(|_cc| Ok(Box::new(PingApp::default()))),
+        Box::new(|_cc| Ok(Box::new(PingApp::new(shared_ping_data_for_app, rx)))),
     )
 }
 
