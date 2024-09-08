@@ -7,5 +7,5 @@ Ping Graph is a simple Rust application that continuously pings a specified IP a
 **Configurable Address:** Allows the user to set and modify the address to be pinged.
 **Reset Functionality:** Clears the graph and statistics.
 
-# Screenshot
+### Screenshot
 ![image](https://github.com/user-attachments/assets/6f86d1d8-fe26-4946-b1f2-51530ef4c300)
