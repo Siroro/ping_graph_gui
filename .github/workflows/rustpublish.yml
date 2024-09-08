@@ -26,11 +26,24 @@ jobs:
       - name: Build
         run: cargo build --release
 
+      - name: Find Executable
+        id: find_executable
+        shell: bash
+        run: |
+          # Find the main executable in the target/release directory (exclude deps, etc.)
+          executable=$(find target/release -maxdepth 1 -type f -executable)
+          echo "Executable file: $executable"
+          echo "::set-output name=exe::$executable"
+
+      - name: Zip the Executable
+        run: |
+          zip -j executable-${{ matrix.os }}.zip ${{ steps.find_executable.outputs.exe }}
+
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.os }}-binary
-          path: target/release/
+          name: executable-${{ matrix.os }}.zip
+          path: executable-${{ matrix.os }}.zip
 
   release:
     name: Create Release
@@ -38,28 +51,30 @@ jobs:
     needs: build
 
     steps:
-      - name: Download binaries
+      - name: Download Linux binary
         uses: actions/download-artifact@v3
         with:
-          name: ubuntu-latest-binary
-          path: binaries/linux/
-      - name: Download binaries (Windows)
+          name: executable-ubuntu-latest.zip
+          path: binaries/
+
+      - name: Download Windows binary
         uses: actions/download-artifact@v3
         with:
-          name: windows-latest-binary
-          path: binaries/windows/
-      - name: Download binaries (macOS)
+          name: executable-windows-latest.zip
+          path: binaries/
+
+      - name: Download macOS binary
         uses: actions/download-artifact@v3
         with:
-          name: macos-latest-binary
-          path: binaries/macos/
+          name: executable-macos-latest.zip
+          path: binaries/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            binaries/linux/*
-            binaries/windows/*
-            binaries/macos/*
+            binaries/executable-ubuntu-latest.zip
+            binaries/executable-windows-latest.zip
+            binaries/executable-macos-latest.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
