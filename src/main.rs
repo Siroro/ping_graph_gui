@@ -8,9 +8,6 @@ use std::sync::{mpsc, Arc, RwLock};
 use std::thread::{self, sleep};
 use std::time::{Duration, Instant};
 
-#[global_allocator]
-static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
-
 struct PingApp {
     ping_times: Vec<(f64, f64)>,
     last_ping: Instant,
