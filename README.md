@@ -1,5 +1,5 @@
 # Ping Graph
-Ping Graph is a simple Rust application that continuously pings a specified IP address and visualizes the ping times in a real-time graph. The program displays statistics such as the best, worst, and average ping times.
+Ping Graph is a simple application that continuously pings a specified IP address and visualizes the ping times in a real-time graph. The program displays statistics such as the best, worst, and average ping times.
 
 ## Features
 **Real-time Ping Graph:** Continuously visualizes ping times in a graph.
