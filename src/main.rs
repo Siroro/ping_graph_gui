@@ -15,7 +15,7 @@ struct PingApp {
     ping_times: Vec<(f64, f64)>,
     last_ping: Instant,
     shared_data: Arc<RwLock<SharedPingData>>,
-    rx: mpsc::Receiver<f64>,  // Receiver to get ping times from the thread
+    rx: mpsc::Receiver<f64>, // Receiver to get ping times from the thread
 }
 
 impl Default for PingApp {
@@ -23,20 +23,26 @@ impl Default for PingApp {
         Self {
             ping_times: Vec::new(),
             last_ping: Instant::now(),
-            shared_data: Arc::new(RwLock::new(SharedPingData { address: "8.8.8.8".to_string()})),
-            rx: mpsc::channel().1
-            }
+            shared_data: Arc::new(RwLock::new(SharedPingData {
+                address: "8.8.8.8".to_string(),
+            })),
+            rx: mpsc::channel().1,
+        }
     }
 }
 
 impl PingApp {
-    fn new(shared_ping_data: Arc<RwLock<SharedPingData>>, rx: mpsc::Receiver<f64>) -> Self {
-        Self { shared_data:shared_ping_data, rx, ..Default::default() }
+    fn new(shared_data: Arc<RwLock<SharedPingData>>, rx: mpsc::Receiver<f64>) -> Self {
+        Self {
+            shared_data,
+            rx,
+            ..Default::default()
+        }
     }
 }
 
 impl eframe::App for PingApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {        
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Ping Graph");
 
@@ -58,15 +64,12 @@ impl eframe::App for PingApp {
                 self.ping_times.push((time, ping_time));
                 println!("Ping time in UI: {:.2} ms", ping_time);
             }
-            
+
             let stats = calculate_ping_stats(&self.ping_times);
             let (_, worst, _) = stats.unwrap_or((0.0, 100.0, 0.0));
-            
-            let points: Vec<[f64; 2]> = self.ping_times
-                .iter()
-                .map(|(x, y)| [*x, *y])
-                .collect();
-            
+
+            let points: Vec<[f64; 2]> = self.ping_times.iter().map(|(x, y)| [*x, *y]).collect();
+
             Plot::new("ping_plot")
                 .view_aspect(2.0)
                 .allow_scroll(false)
@@ -78,17 +81,17 @@ impl eframe::App for PingApp {
                     let size = points.len() as f64;
                     plot_ui.set_plot_bounds(PlotBounds::from_min_max(
                         [0.0, 0.0],
-                        [size, worst + 10.0]
+                        [size, worst + 10.0],
                     ));
                 });
-                
+
             match stats {
                 Some((best, worst, average)) => {
                     ui.label(format!(
                         "{:.2}ms best, {:.2}ms worst, {:.2}ms average",
                         best, worst, average
                     ));
-                },
+                }
                 None => {
                     ui.label("No ping times available.");
                 }
