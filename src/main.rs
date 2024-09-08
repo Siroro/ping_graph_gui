@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 struct PingApp {
     ping_times: Vec<(f64, f64)>,
     last_ping: Instant,
-    shared_data: Arc<RwLock<SharedPingData>>,
+    shared_data: Arc<RwLock<PingAddress>>,
     rx: mpsc::Receiver<f64>, // Receiver to get ping times from the thread
 }
 
@@ -20,7 +20,7 @@ impl Default for PingApp {
         Self {
             ping_times: Vec::new(),
             last_ping: Instant::now(),
-            shared_data: Arc::new(RwLock::new(SharedPingData {
+            shared_data: Arc::new(RwLock::new(PingAddress {
                 address: "8.8.8.8".to_string(),
             })),
             rx: mpsc::channel().1,
@@ -29,7 +29,7 @@ impl Default for PingApp {
 }
 
 impl PingApp {
-    fn new(shared_data: Arc<RwLock<SharedPingData>>, rx: mpsc::Receiver<f64>) -> Self {
+    fn new(shared_data: Arc<RwLock<PingAddress>>, rx: mpsc::Receiver<f64>) -> Self {
         Self {
             shared_data,
             rx,
@@ -103,7 +103,7 @@ impl eframe::App for PingApp {
     }
 }
 
-struct SharedPingData {
+struct PingAddress {
     address: String,
 }
 
@@ -115,7 +115,7 @@ fn main() -> Result<(), eframe::Error> {
         ..Default::default()
     };
 
-    let shared_ping_data: Arc<RwLock<SharedPingData>> = Arc::new(RwLock::new(SharedPingData {
+    let shared_ping_data: Arc<RwLock<PingAddress>> = Arc::new(RwLock::new(PingAddress {
         address: "8.8.8.8".to_string(),
     }));
     let shared_ping_data_for_thread = Arc::clone(&shared_ping_data);
@@ -123,7 +123,7 @@ fn main() -> Result<(), eframe::Error> {
     let (tx, rx) = std::sync::mpsc::channel();
     thread::spawn(move || {
         loop {
-            let shared_data = shared_ping_data_for_thread.read().unwrap(); // Write lock for modifying shared data
+            let shared_data = shared_ping_data_for_thread.read().unwrap(); // Read lock for reading shared data
             let start = Instant::now();
             let address = &shared_data.address.clone();
             drop(shared_data);
