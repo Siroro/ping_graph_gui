@@ -3,8 +3,11 @@ Ping Graph is a simple Rust application that continuously pings a specified IP a
 
 ## Features
 **Real-time Ping Graph:** Continuously visualizes ping times in a graph.
+
 **Statistics:** Displays best, worst, and average ping times.
+
 **Configurable Address:** Allows the user to set and modify the address to be pinged.
+
 **Reset Functionality:** Clears the graph and statistics.
 
 ### Screenshot
