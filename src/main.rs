@@ -59,7 +59,6 @@ impl eframe::App for PingApp {
             if let Ok(ping_time) = self.rx.try_recv() {
                 let time = self.ping_times.len() as f64;
                 self.ping_times.push((time, ping_time));
-                println!("Ping time in UI: {:.2} ms", ping_time);
             }
 
             let stats = calculate_ping_stats(&self.ping_times);
@@ -99,7 +98,7 @@ impl eframe::App for PingApp {
 
         // Request a repaint every frame to continuously update the UI
         ctx.request_repaint();
-        sleep(Duration::from_millis(16));
+        sleep(Duration::from_millis(16)); // Refresh at 60fps
     }
 }
 
@@ -123,7 +122,7 @@ fn main() -> Result<(), eframe::Error> {
     let (tx, rx) = std::sync::mpsc::channel();
     thread::spawn(move || {
         loop {
-            let shared_data = shared_ping_data_for_thread.read().unwrap(); // Read lock for reading shared data
+            let shared_data = shared_ping_data_for_thread.read().unwrap(); 
             let start = Instant::now();
             let address = &shared_data.address.clone();
             drop(shared_data);
