@@ -161,14 +161,27 @@ fn main() -> Result<(), eframe::Error> {
 
 fn calculate_ping_stats(ping_times: &Vec<(f64, f64)>) -> Option<(f64, f64, f64)> {
     if ping_times.is_empty() {
-        return None; // Return None if there are no ping times
+        return None;
     }
 
-    let pings: Vec<f64> = ping_times.iter().map(|&(_, ping)| ping).collect();
+    let mut min_ping = f64::INFINITY;
+    let mut max_ping = f64::NEG_INFINITY;
+    let mut total_ping = 0.0;
+    let mut count = 0;
 
-    let min_ping = pings.iter().cloned().fold(f64::INFINITY, f64::min);
-    let max_ping = pings.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let avg_ping = pings.iter().sum::<f64>() / pings.len() as f64;
+    for &(_, ping) in ping_times.iter() {
+        if ping < min_ping {
+            min_ping = ping;
+        }
+        if ping > max_ping {
+            max_ping = ping;
+        }
+        total_ping += ping;
+        count += 1;
+    }
+
+    let avg_ping = total_ping / count as f64;
 
     Some((min_ping, max_ping, avg_ping))
+
 }
