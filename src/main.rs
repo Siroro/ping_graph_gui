@@ -9,12 +9,12 @@ use std::thread::{self};
 use std::time::{Duration, Instant};
 
 struct PingApp {
-    ping_times: Vec<[f64; 2]>,       // Stores ping times
-    stats: Option<(f64, f64, f64)>,   // Cached ping statistics: (best, worst, average)
-    ping_times_updated: bool,         // Flag indicating if ping times were updated
-    last_ping: Instant,               // Last time a ping was sent
+    ping_times: Vec<[f64; 2]>,                 // Stores ping times
+    stats: Option<(f64, f64, f64)>,            // Cached ping statistics: (best, worst, average)
+    ping_times_updated: bool,                  // Flag indicating if ping times were updated
+    last_ping: Instant,                        // Last time a ping was sent
     shared_data: Arc<RwLock<PingSharedState>>, // Shared address to ping
-    rx: mpsc::Receiver<f64>,          // Receiver to get ping times from the thread
+    rx: mpsc::Receiver<f64>,                   // Receiver to get ping times from the thread
 }
 
 impl Default for PingApp {
@@ -22,12 +22,12 @@ impl Default for PingApp {
         let (_, rx) = mpsc::channel(); // Initialize both sender and receiver
         Self {
             ping_times: Vec::new(),
-            stats: None,                    // No stats initially
-            ping_times_updated: false,      // No updates initially
+            stats: None,               // No stats initially
+            ping_times_updated: false, // No updates initially
             last_ping: Instant::now(),
             shared_data: Arc::new(RwLock::new(PingSharedState {
                 address: "8.8.8.8".to_string(), // Default address
-                error: "".to_string()
+                error: "".to_string(),
             })),
             rx, // Set up receiver for ping times
         }
@@ -109,7 +109,7 @@ impl eframe::App for PingApp {
                 ui.label("No ping times available.");
             }
 
-            ui.add_space(10.0); 
+            ui.add_space(10.0);
         });
         ctx.request_repaint();
         std::thread::sleep(Duration::from_millis(16));
@@ -117,7 +117,7 @@ impl eframe::App for PingApp {
 }
 struct PingSharedState {
     address: String,
-    error: String
+    error: String,
 }
 
 fn main() -> Result<(), eframe::Error> {
@@ -130,52 +130,47 @@ fn main() -> Result<(), eframe::Error> {
 
     let shared_ping_data: Arc<RwLock<PingSharedState>> = Arc::new(RwLock::new(PingSharedState {
         address: "8.8.8.8".to_string(),
-        error: "".to_string()
+        error: "".to_string(),
     }));
     let shared_ping_data_for_thread = Arc::clone(&shared_ping_data);
 
     let (tx, rx) = std::sync::mpsc::channel();
-    thread::spawn(move || {
-        loop {
-            let shared_data = shared_ping_data_for_thread.read().unwrap(); 
-            let start = Instant::now();
-            let address = &shared_data.address.clone();
-            drop(shared_data);
-            let mut success  = false;
-            match (address.as_str(), 0).to_socket_addrs() {
-                Ok(mut addrs) => {
-                    if let Some(sock_addr) = addrs.next() {
-                        let ip = sock_addr.ip();
-                        match ping(ip, None, None, None, None, None) {
-                            Ok(_) => {
-                                let duration = start.elapsed();
-                                tx.send(duration.as_millis() as f64).unwrap();
-                                let mut shared_data = shared_ping_data_for_thread.write().unwrap(); 
-                                shared_data.error = "".to_string();
-                                success = true;
-                            }
-                            Err(e) => { 
-                                let mut shared_data = shared_ping_data_for_thread.write().unwrap(); 
-                                shared_data.error = format!("Ping failed: {}", e);
-                                println!("Ping failed: {}", e)
-                            },
+    thread::spawn(move || loop {
+        let shared_data = shared_ping_data_for_thread.read().unwrap();
+        let start = Instant::now();
+        let address = &shared_data.address.clone();
+        drop(shared_data);
+        let mut success = false;
+        match (address.as_str(), 0).to_socket_addrs() {
+            Ok(mut addrs) => {
+                if let Some(sock_addr) = addrs.next() {
+                    let ip = sock_addr.ip();
+                    match ping(ip, None, None, None, None, None) {
+                        Ok(_) => {
+                            let duration = start.elapsed();
+                            tx.send(duration.as_millis() as f64).unwrap();
+                            let mut shared_data = shared_ping_data_for_thread.write().unwrap();
+                            shared_data.error = "".to_string();
+                            success = true;
                         }
-                    } else {
-                        let mut shared_data = shared_ping_data_for_thread.write().unwrap(); 
-                        shared_data.error = format!("Could not resolve address: {}", address);
-                        println!("Could not resolve address: {}", address);
+                        Err(e) => {
+                            let mut shared_data = shared_ping_data_for_thread.write().unwrap();
+                            shared_data.error = format!("Ping failed: {}", e);
+                        }
                     }
-                }
-                Err(e) => {
-                    let mut shared_data = shared_ping_data_for_thread.write().unwrap(); 
-                    shared_data.error = format!("Invalid address: {}. Error: {}", address, e);
-                    println!("Invalid address: {}. Error: {}", address, e);
+                } else {
+                    let mut shared_data = shared_ping_data_for_thread.write().unwrap();
+                    shared_data.error = format!("Could not resolve address: {}", address);
                 }
             }
+            Err(e) => {
+                let mut shared_data = shared_ping_data_for_thread.write().unwrap();
+                shared_data.error = format!("Invalid address: {}. Error: {}", address, e);
+            }
+        }
 
-            if success {
-                thread::sleep(Duration::from_secs(1));
-            }
+        if success {
+            thread::sleep(Duration::from_secs(1));
         }
     });
 
