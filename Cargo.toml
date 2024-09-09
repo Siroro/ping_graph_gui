@@ -11,3 +11,8 @@ ping = "0.5"
 [profile.release]
 debug = true
 lto = true
+
+[profile.shipping]
+inherits = "release"
+lto = true
+debug = false
