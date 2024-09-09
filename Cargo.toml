@@ -7,3 +7,7 @@ edition = "2021"
 eframe = "0.28"
 egui_plot = "0.28"
 ping = "0.5"
+
+[profile.release]
+debug = true
+lto = true
