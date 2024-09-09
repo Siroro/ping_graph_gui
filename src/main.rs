@@ -13,7 +13,7 @@ struct PingApp {
     stats: Option<(f64, f64, f64)>,   // Cached ping statistics: (best, worst, average)
     ping_times_updated: bool,         // Flag indicating if ping times were updated
     last_ping: Instant,               // Last time a ping was sent
-    shared_data: Arc<RwLock<PingAddress>>, // Shared address to ping
+    shared_data: Arc<RwLock<PingSharedState>>, // Shared address to ping
     rx: mpsc::Receiver<f64>,          // Receiver to get ping times from the thread
 }
 
@@ -25,7 +25,7 @@ impl Default for PingApp {
             stats: None,                    // No stats initially
             ping_times_updated: false,      // No updates initially
             last_ping: Instant::now(),
-            shared_data: Arc::new(RwLock::new(PingAddress {
+            shared_data: Arc::new(RwLock::new(PingSharedState {
                 address: "8.8.8.8".to_string(), // Default address
                 error: "".to_string()
             })),
@@ -35,7 +35,7 @@ impl Default for PingApp {
 }
 
 impl PingApp {
-    fn new(shared_data: Arc<RwLock<PingAddress>>, rx: mpsc::Receiver<f64>) -> Self {
+    fn new(shared_data: Arc<RwLock<PingSharedState>>, rx: mpsc::Receiver<f64>) -> Self {
         Self {
             shared_data,
             rx,
@@ -80,8 +80,6 @@ impl eframe::App for PingApp {
 
             if self.ping_times_updated {
                 ctx.request_repaint();
-                // Update plot points and stats
-                //self.plot_points = PlotPoints::from(self.ping_times.iter().map(|(x, y)| [*x, *y]).collect::<Vec<_>>());
                 self.stats = calculate_ping_stats(&self.ping_times);
                 self.ping_times_updated = false;
             }
@@ -111,13 +109,13 @@ impl eframe::App for PingApp {
                 ui.label("No ping times available.");
             }
 
-            ui.add_space(10.0);  // Replace Label::new("") with proper spacing
+            ui.add_space(10.0); 
         });
         ctx.request_repaint();
         std::thread::sleep(Duration::from_millis(16));
     }
 }
-struct PingAddress {
+struct PingSharedState {
     address: String,
     error: String
 }
@@ -130,7 +128,7 @@ fn main() -> Result<(), eframe::Error> {
         ..Default::default()
     };
 
-    let shared_ping_data: Arc<RwLock<PingAddress>> = Arc::new(RwLock::new(PingAddress {
+    let shared_ping_data: Arc<RwLock<PingSharedState>> = Arc::new(RwLock::new(PingSharedState {
         address: "8.8.8.8".to_string(),
         error: "".to_string()
     }));
