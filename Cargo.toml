@@ -4,8 +4,8 @@ version = "1.0.0"
 edition = "2021"
 
 [dependencies]
-eframe = "0.28"
-egui_plot = "0.28"
+eframe = "0.29"
+egui_plot = "0.29"
 ping = "0.5"
 
 [profile.release]
