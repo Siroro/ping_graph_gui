@@ -172,6 +172,9 @@ fn main() -> Result<(), eframe::Error> {
         if success {
             thread::sleep(Duration::from_secs(1));
         }
+        else {
+            thread::sleep(Duration::from_secs(2));
+        }
     });
 
     let shared_ping_data_for_app = Arc::clone(&shared_ping_data);
