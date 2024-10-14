@@ -108,11 +108,16 @@ impl eframe::App for PingApp {
             } else {
                 ui.label("No ping times available.");
             }
+            
+            if ctx.input(|i| i.focused) {
+                std::thread::sleep(Duration::from_millis(6));
+            } else {
+                std::thread::sleep(Duration::from_millis(200));
+            }
 
             ui.add_space(10.0);
         });
         ctx.request_repaint();
-        std::thread::sleep(Duration::from_millis(16));
     }
 }
 struct PingSharedState {
@@ -171,8 +176,7 @@ fn main() -> Result<(), eframe::Error> {
 
         if success {
             thread::sleep(Duration::from_secs(1));
-        }
-        else {
+        } else {
             thread::sleep(Duration::from_secs(2));
         }
     });
