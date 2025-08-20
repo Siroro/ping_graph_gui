@@ -4,9 +4,9 @@ version = "1.0.0"
 edition = "2021"
 
 [dependencies]
-eframe = "0.29"
-egui_plot = "0.29"
-ping = "0.5"
+eframe = "0.32"
+egui_plot = "0.33"
+ping = "0.6"
 
 [profile.release]
 debug = true

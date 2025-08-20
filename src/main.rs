@@ -92,7 +92,7 @@ impl eframe::App for PingApp {
                 .allow_zoom(false)
                 .allow_drag(false)
                 .show(ui, |plot_ui| {
-                    plot_ui.line(Line::new(self.ping_times.clone()));
+                    plot_ui.line(Line::new("ping_times", self.ping_times.clone()));
                     let size = self.ping_times.len() as f64;
                     plot_ui.set_plot_bounds(PlotBounds::from_min_max(
                         [0.0, 0.0],
