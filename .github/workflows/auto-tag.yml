@@ -9,7 +9,7 @@ on:
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  create-release:
+  build-and-release:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -26,8 +26,16 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
       
+      - name: Build for Linux x86_64
+        run: |
+          cargo build --release --target x86_64-unknown-linux-gnu
+          mkdir -p release
+          cp target/x86_64-unknown-linux-gnu/release/ping_graph release/ping_graph-linux-x86_64
+      
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Release v${{ steps.version.outputs.version }}
@@ -35,13 +43,11 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            target/release/ping_graph*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            release/ping_graph-linux-x86_64
 
   build-and-upload:
-    needs: create-release
-    if: needs.create-release.outputs.tag != ''
+    needs: build-and-release
+    if: needs.build-and-release.outputs.tag != ''
     strategy:
       matrix:
         include:
