@@ -15,8 +15,8 @@ jobs:
   build-and-release:
     runs-on: ${{ matrix.os }}
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version_unix.outputs.version || steps.version_windows.outputs.version }}
+      tag: ${{ steps.version_unix.outputs.tag || steps.version_windows.outputs.tag }}
     strategy:
       matrix:
         include:
@@ -40,12 +40,26 @@ jobs:
         with:
           fetch-depth: 0  # Get full history for proper versioning
       
-      - name: Get version from Cargo.toml
-        id: version
+      - name: Get version from Cargo.toml (Unix)
+        if: runner.os != 'Windows'
+        id: version_unix
         run: |
           VERSION=$(grep '^version' Cargo.toml | cut -d '"' -f 2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get version from Cargo.toml (Windows)
+        if: runner.os == 'Windows'
+        id: version_windows
+        shell: pwsh
+        run: |
+          $line = Select-String -Path Cargo.toml -Pattern '^version' | Select-Object -First 1
+          if (-not $line) { Write-Error 'version not found in Cargo.toml'; exit 1 }
+          $m = [regex]::Match($line.Line, '"([^"]+)"')
+          if (-not $m.Success) { Write-Error 'failed to parse version'; exit 1 }
+          $version = $m.Groups[1].Value
+          Add-Content -Path $Env:GITHUB_OUTPUT -Value "version=$version"
+          Add-Content -Path $Env:GITHUB_OUTPUT -Value "tag=v$version"
       
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -74,9 +88,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: Release v${{ steps.version.outputs.version }}
-          body: Automated release for version ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version_unix.outputs.tag || steps.version_windows.outputs.tag }}
+          name: Release v${{ steps.version_unix.outputs.version || steps.version_windows.outputs.version }}
+          body: Automated release for version ${{ steps.version_unix.outputs.version || steps.version_windows.outputs.version }}
           draft: false
           prerelease: false
           files: |
