@@ -13,7 +13,7 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
@@ -55,8 +55,19 @@ jobs:
       - name: Build for ${{ matrix.target }}
         run: |
           cargo build --release --target ${{ matrix.target }}
+
+      - name: Copy artifact (non-Windows)
+        if: runner.os != 'Windows'
+        run: |
           mkdir -p release
           cp target/${{ matrix.target }}/release/ping_graph release/ping_graph-${{ matrix.target }}
+
+      - name: Copy artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item -Path target\\${{ matrix.target }}\\release\\ping_graph.exe -Destination release\\ping_graph-${{ matrix.target }}.exe -Force
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
