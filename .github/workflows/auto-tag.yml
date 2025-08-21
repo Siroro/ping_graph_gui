@@ -5,6 +5,7 @@ on:
     branches: [ main, master ]
     paths:
       - 'Cargo.toml'
+      - '.github/workflows/auto-tag.yml'
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
