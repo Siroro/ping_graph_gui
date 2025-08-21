@@ -39,7 +39,7 @@ jobs:
 
   build-and-upload:
     needs: create-release
-    if: needs.auto-tag-and-release.outputs.tag != ''
+    if: needs.create-release.outputs.tag != ''
     strategy:
       matrix:
         include:
