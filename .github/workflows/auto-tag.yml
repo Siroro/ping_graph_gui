@@ -66,7 +66,31 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       
-      - name: Build for ${{ matrix.target }}
+      # If we're running on an aarch64 runner (ARM64), build natively
+      - name: Build for aarch64 target (native)
+        if: ${{ contains(matrix.target, 'aarch64-unknown-linux-gnu') && runner.arch == 'ARM64' }}
+        run: |
+          echo "Native ARM64 runner detected (arch=$RUNNER_ARCH). Building natively."
+          cargo build --release --target ${{ matrix.target }}
+
+      # Otherwise, on x86 runners, install a cross toolchain and use it
+      - name: Install aarch64 cross toolchain (Linux)
+        if: ${{ contains(matrix.target, 'aarch64-unknown-linux-gnu') && runner.arch != 'ARM64' && runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu
+
+      - name: Build for aarch64 target (cross)
+        if: ${{ contains(matrix.target, 'aarch64-unknown-linux-gnu') && runner.arch != 'ARM64' && runner.os == 'Linux' }}
+        env:
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: |
+          echo "No native ARM64 runner detected (arch=$RUNNER_ARCH). Using cross toolchain."
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Build for ${{ matrix.target }} (default)
+        if: ${{ !(runner.os == 'Linux' && contains(matrix.target, 'aarch64-unknown-linux-gnu')) }}
         run: |
           cargo build --release --target ${{ matrix.target }}
 
