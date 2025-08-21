@@ -9,7 +9,7 @@ on:
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  auto-tag-and-release:
+  create-release:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -26,44 +26,14 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
       
-      - name: Check if tag already exists
-        id: tag_exists
-        run: |
-          if git tag -l "${{ steps.version.outputs.tag }}" | grep -q "${{ steps.version.outputs.tag }}"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Tag ${{ steps.version.outputs.tag }} already exists"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Tag ${{ steps.version.outputs.tag }} does not exist"
-          fi
-      
-      - name: Create and push tag
-        if: steps.tag_exists.outputs.exists == 'false'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  create-release:
-    needs: auto-tag-and-release
-    if: needs.auto-tag-and-release.outputs.tag != ''
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ needs.auto-tag-and-release.outputs.tag }}
-          release_name: Release v${{ needs.auto-tag-and-release.outputs.version }}
-          body: Automated release for version ${{ needs.auto-tag-and-release.outputs.version }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          release_name: Release v${{ steps.version.outputs.version }}
+          body: Automated release for version ${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
 
