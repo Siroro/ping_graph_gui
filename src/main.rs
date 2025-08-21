@@ -15,6 +15,10 @@ struct PingApp {
     last_ping: Instant,                        // Last time a ping was sent
     shared_data: Arc<RwLock<PingSharedState>>, // Shared address to ping
     rx: mpsc::Receiver<f64>,                   // Receiver to get ping times from the thread
+    loss_count: usize,                          // Number of lost pings
+    total_pings: usize,                        // Total pings attempted
+    y_axis_auto: bool,                         // Whether Y axis is auto-scaled
+    y_axis_max: f64,                           // Manual Y axis maximum
 }
 
 impl Default for PingApp {
@@ -30,6 +34,10 @@ impl Default for PingApp {
                 error: "".to_string(),
             })),
             rx, // Set up receiver for ping times
+            loss_count: 0,
+            total_pings: 0,
+            y_axis_auto: true,
+            y_axis_max: 200.0,
         }
     }
 }
@@ -74,7 +82,15 @@ impl eframe::App for PingApp {
             // Check for new ping times
             while let Ok(ping_time) = self.rx.try_recv() {
                 let time = self.ping_times.len() as f64;
-                self.ping_times.push([time, ping_time]);
+                self.total_pings += 1;
+                if ping_time.is_nan() {
+                    // record a lost ping; keep a NaN entry so plotting can show gaps
+                    self.loss_count += 1;
+                    self.ping_times.push([time, f64::NAN]);
+                } else {
+                    self.ping_times.push([time, ping_time]);
+                }
+                // keep all samples (user requested to retain all data)
                 self.ping_times_updated = true;
             }
 
@@ -92,22 +108,38 @@ impl eframe::App for PingApp {
                 .allow_zoom(false)
                 .allow_drag(false)
                 .show(ui, |plot_ui| {
+                    // Main ping line
                     plot_ui.line(Line::new("ping_times", self.ping_times.clone()));
+
                     let size = self.ping_times.len() as f64;
-                    plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                        [0.0, 0.0],
-                        [size, worst + 10.0],
-                    ));
+
+                    // Determine Y axis max: auto or manual
+                    let y_max = if self.y_axis_auto { worst + 10.0 } else { self.y_axis_max };
+
+                    plot_ui.set_plot_bounds(PlotBounds::from_min_max([0.0, 0.0], [size, y_max]));
                 });
 
             if let Some((best, worst, average)) = self.stats {
+                let loss_percent = if self.total_pings == 0 {
+                    0.0
+                } else {
+                    (self.loss_count as f64 / self.total_pings as f64) * 100.0
+                };
                 ui.label(format!(
-                    "{:.2}ms best, {:.2}ms worst, {:.2}ms average",
-                    best, worst, average
+                    "{:.2}ms best, {:.2}ms worst, {:.2}ms average — Loss: {:.1}% ({}/{})",
+                    best, worst, average, loss_percent, self.loss_count, self.total_pings
                 ));
             } else {
                 ui.label("No ping times available.");
             }
+
+            // Controls for Y axis
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.y_axis_auto, "Auto Y");
+                if !self.y_axis_auto {
+                    ui.add(egui::Slider::new(&mut self.y_axis_max, 10.0..=2000.0).text("Y max"));
+                }
+            });
             
             if ctx.input(|i| i.focused) {
                 std::thread::sleep(Duration::from_millis(6));
@@ -153,22 +185,28 @@ fn main() -> Result<(), eframe::Error> {
                     match ping(ip, None, None, None, None, None) {
                         Ok(_) => {
                             let duration = start.elapsed();
-                            tx.send(duration.as_millis() as f64).unwrap();
+                            let _ = tx.send(duration.as_millis() as f64);
                             let mut shared_data = shared_ping_data_for_thread.write().unwrap();
                             shared_data.error = "".to_string();
                             success = true;
                         }
                         Err(e) => {
+                            // send NaN to indicate a lost ping
+                            let _ = tx.send(f64::NAN);
                             let mut shared_data = shared_ping_data_for_thread.write().unwrap();
                             shared_data.error = format!("Ping failed: {}", e);
                         }
                     }
                 } else {
+                    // Could not resolve; report as lost ping
+                    let _ = tx.send(f64::NAN);
                     let mut shared_data = shared_ping_data_for_thread.write().unwrap();
                     shared_data.error = format!("Could not resolve address: {}", address);
                 }
             }
             Err(e) => {
+                // Invalid address resolution; report as lost ping
+                let _ = tx.send(f64::NAN);
                 let mut shared_data = shared_ping_data_for_thread.write().unwrap();
                 shared_data.error = format!("Invalid address: {}. Error: {}", address, e);
             }
@@ -200,6 +238,9 @@ fn calculate_ping_stats(ping_times: &[[f64; 2]]) -> Option<(f64, f64, f64)> {
     let mut count = 0;
 
     for &[_time, ping] in ping_times.iter() {
+        if ping.is_nan() {
+            continue;
+        }
         if ping < min_ping {
             min_ping = ping;
         }
@@ -208,6 +249,10 @@ fn calculate_ping_stats(ping_times: &[[f64; 2]]) -> Option<(f64, f64, f64)> {
         }
         total_ping += ping;
         count += 1;
+    }
+
+    if count == 0 {
+        return None;
     }
 
     let avg_ping = total_ping / count as f64;
