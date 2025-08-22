@@ -90,7 +90,7 @@ jobs:
           cargo build --release --target ${{ matrix.target }}
 
       - name: Build for ${{ matrix.target }} (default)
-        if: ${{ !(runner.os == 'Linux' && contains(matrix.target, 'aarch64-unknown-linux-gnu')) }}
+        if: ${{ !(contains(matrix.target, 'aarch64-unknown-linux-gnu') && runner.os == 'Linux') }}
         run: |
           cargo build --release --target ${{ matrix.target }}
 
